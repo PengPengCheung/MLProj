@@ -3,6 +3,57 @@
 # reload(sys)
 # sys.setdefaultencoding('utf-8')
 from math import log
+import operator
+
+
+def classify(inputTree, featureLabels, testVec):
+    firstStr = inputTree.keys()[0]
+    secondDict = inputTree[firstStr]
+    featureIndex = featureLabels.index(firstStr)
+    for key in secondDict.keys():
+        if testVec[featureIndex] == key:
+            if type(secondDict[key]).__name__ == 'dict':
+                classLabel = classify(secondDict[key], featureLabels, testVec)
+            else:
+                classLabel = secondDict[key]
+
+    return classLabel
+
+
+'''
+输入：
+dataSet: 数据集，二维表形式（嵌套列表），数据集中的最后一项是包含分类的类标签
+labels: 标签集，即每个属性对应的标签名列表
+算法步骤：
+1、从数据集中获取全部的分类的类别列表
+2、设定递归退出条件：1）所有分类标签都属于同一类别时退出，此时表明已经正确分类  2) 当处理完所有特征，仍然存在未分类的样本时，则返回剩下样本中类别占多数的类别
+3、从数据集中选取最佳的划分特征下标
+4、根据最佳特征找到数据集和特征值相等的样本
+5、根据最佳特征对数据集进行划分(根据特征值的不同可以划分出多个分支)
+6、将划分结果记录到一个字典中
+7、递归这个过程
+'''
+def createTree(dataSet, labels):
+    classList = [example[-1] for example in dataSet]
+    if classList.count(classList[0]) == len(classList): # 剩下所有样本都属于同一类别时，表示已到达叶子结点，返回该叶子结点的类别
+        return classList[0]
+    if len(dataSet[0]) == 1: # 当数据集遍历完所有特征时，仅剩下分类的类别，则选择类别最多的一个
+        return majorityCnt(classList)
+
+    bestFeatIndex = chooseBestFeatureToSplit(dataSet) # 从数据集中挑选最佳的划分特征
+    besFeatureLabel = labels[bestFeatIndex] # 最佳特征的特征名
+    del(labels[bestFeatIndex]) # 挑选后删除最佳特征，避免下次迭代时仍然选择同样的特征
+    decisionTree = {besFeatureLabel: {}}
+    bestFeatureValues = [example[bestFeatIndex] for example in dataSet]
+    uniqueBestFeatureValues = set(bestFeatureValues)
+    for value in uniqueBestFeatureValues:
+        subLables = labels[:]
+        splitData = splitDataSet(dataSet, bestFeatIndex, value)
+        decisionTree[besFeatureLabel][value] = createTree(splitData, subLables)
+
+    return decisionTree
+
+
 
 def createDataSet():
     dataSet = [[1, 1, 'yes'],
@@ -62,9 +113,9 @@ def chooseBestFeatureToSplit(dataSet):
     bestFeature = -1
     for i in range(numFeatures):
         featList = [example[i] for example in dataSet] # 遍历数据集，并将每个元素（每个元素是一个列表）的第一项取出，组成一个特征值列表
-        print featList
+        # print featList
         uniqueVals = set(featList) # 将列表转化成集合，集合中的元素不存在重复的值
-        print uniqueVals
+        # print uniqueVals
         newEntropy = 0.0
         for value in uniqueVals:
             subDataSet = splitDataSet(dataSet, i, value)
@@ -75,3 +126,13 @@ def chooseBestFeatureToSplit(dataSet):
             bestInfoGain = infoGain
             bestFeature = i
     return bestFeature
+
+
+def majorityCnt(classList):
+    classCount = {}
+    for vote in classList:
+        if vote not in classCount.keys():
+            classCount[vote] = 0
+        classCount[vote] += 1
+    sortedClassCount = sorted(classCount.iteritems(), key=operator.itemgetter(1), reverse=True)
+    return sortedClassCount[0][0]
